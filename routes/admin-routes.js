@@ -887,11 +887,19 @@ router.get('/assignments', async (req, res) => {
 router.post('/assignments/save', async (req, res) => {
     try {
         const { userId, storeId } = req.body;
-        await StoreService.assignToUser(storeId, userId, req.currentUser.id);
+        console.log('[ADMIN] Saving assignment - userId:', userId, 'storeId:', storeId, 'assignedBy:', req.currentUser.id);
+        
+        if (!userId || !storeId) {
+            console.error('[ADMIN] Missing userId or storeId');
+            return res.status(400).send('Missing userId or storeId');
+        }
+        
+        const assignedBy = parseInt(req.currentUser.id) || 1;
+        await StoreService.assignToUser(parseInt(storeId), parseInt(userId), assignedBy);
         res.redirect('/admin/assignments');
     } catch (error) {
         console.error('[ADMIN] Save assignment error:', error);
-        res.status(500).send('Error saving assignment');
+        res.status(500).send('Error saving assignment: ' + error.message);
     }
 });
 
