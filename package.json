@@ -1,0 +1,24 @@
+{
+  "name": "area-manager-checklist",
+  "version": "1.0.0",
+  "description": "Area Manager Checklist App - GMRL",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "author": "GMRL",
+  "dependencies": {
+    "@azure/msal-node": "^2.6.0",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "mssql": "^10.0.1",
+    "multer": "^2.0.2",
+    "node-windows": "^1.0.0-beta.8",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

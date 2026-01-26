@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Environment files (contains secrets!)
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+iisnode/
+daemon/*.log
+
+# Windows Service executables
+daemon/*.exe
+daemon/*.xml
+daemon/*.exe.config
+
+# Uploads (user generated content)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build outputs
+dist/
+build/
+
+# Test coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
