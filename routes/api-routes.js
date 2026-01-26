@@ -245,4 +245,28 @@ router.get('/checklists/stats', async (req, res) => {
     }
 });
 
+// ==========================================
+// Impersonation API (Admin only)
+// ==========================================
+
+router.post('/impersonate/:userId', (req, res) => {
+    // Only real admins can impersonate (check realUser, not currentUser)
+    if (req.realUser?.role !== 'Admin') {
+        return res.status(403).json({ error: 'Only Admin can impersonate users' });
+    }
+    
+    const userId = req.params.userId;
+    res.cookie('impersonate_user', userId, { 
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 1000 // 1 hour
+    });
+    res.json({ success: true, message: 'Now viewing as user ' + userId });
+});
+
+router.post('/impersonate/stop', (req, res) => {
+    res.clearCookie('impersonate_user');
+    res.json({ success: true, message: 'Stopped impersonation' });
+});
+
 module.exports = router;

@@ -305,6 +305,11 @@ router.post('/stores/save', async (req, res) => {
 // ==========================================
 
 router.get('/users', async (req, res) => {
+    // Only Admin can access users management
+    if (req.currentUser.role !== 'Admin') {
+        return res.status(403).send('Access denied. Admin only.');
+    }
+    
     try {
         const users = await UserService.getAll();
         const roles = await UserService.getAllRoles();
@@ -370,7 +375,7 @@ router.get('/users', async (req, res) => {
                         <th>Email</th>
                         <th width="150">Role</th>
                         <th width="100">Status</th>
-                        <th width="150">Actions</th>
+                        <th width="200">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -393,6 +398,7 @@ router.get('/users', async (req, res) => {
                             </td>
                             <td class="center">
                                 <button class="btn btn-sm ${u.IsActive ? 'btn-warning' : 'btn-success'}" onclick="toggleUser(${u.Id})">${u.IsActive ? 'Disable' : 'Enable'}</button>
+                                <button class="btn btn-sm btn-info" onclick="viewAsUser(${u.Id}, '${escapeHtml(u.DisplayName || u.Email)}')" title="View app as this user">👁️</button>
                             </td>
                         </tr>
                     `).join('')}
@@ -549,6 +555,13 @@ router.get('/users', async (req, res) => {
                     resultDiv.style.display = 'block';
                     btn.disabled = false;
                     icon.style.animation = '';
+                }
+
+                async function viewAsUser(userId, userName) {
+                    if (confirm('View the app as "' + userName + '"?\\n\\nYou will see exactly what this user sees. Click the banner at the top to stop.')) {
+                        await fetch('/api/impersonate/' + userId, { method: 'POST' });
+                        window.location.href = '/dashboard';
+                    }
                 }
 
                 function showAddUserModal() {
@@ -789,6 +802,11 @@ user3@gmrlgroup.com, Bob Wilson"></textarea>
 // ==========================================
 
 router.get('/assignments', async (req, res) => {
+    // Only Admin can access assignments management
+    if (req.currentUser.role !== 'Admin') {
+        return res.status(403).send('Access denied. Admin only.');
+    }
+    
     try {
         const areaManagers = await UserService.getAreaManagers();
         const stores = await StoreService.getActive();
@@ -819,6 +837,7 @@ router.get('/assignments', async (req, res) => {
                             <td>${escapeHtml(a.StoreName)}</td>
                             <td>${formatDate(a.AssignedAt)}</td>
                             <td class="center">
+                                <button class="btn btn-sm btn-secondary" onclick="editAssignment(${a.UserId}, ${a.StoreId}, '${escapeHtml(a.UserName).replace(/'/g, "\\'")}')">Edit</button>
                                 <button class="btn btn-sm btn-danger" onclick="unassign(${a.StoreId}, ${a.UserId})">Remove</button>
                             </td>
                         </tr>
@@ -857,6 +876,31 @@ router.get('/assignments', async (req, res) => {
                 </div>
             </div>
 
+            <!-- Edit Assignment Modal -->
+            <div id="editAssignModal" class="modal">
+                <div class="modal-content">
+                    <h2>Edit Assignment</h2>
+                    <p style="margin-bottom: 15px; color: #666;">Changing store for: <strong id="editUserName"></strong></p>
+                    <form id="editAssignForm">
+                        <input type="hidden" id="editUserId" name="userId">
+                        <input type="hidden" id="editOldStoreId" name="oldStoreId">
+                        <div class="form-group">
+                            <label>New Store</label>
+                            <select id="editStoreId" name="storeId" required>
+                                <option value="">-- Select Store --</option>
+                                ${stores.map(s => `
+                                    <option value="${s.Id}">${escapeHtml(s.StoreName)}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="closeEditAssignModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <script>
                 function showAssignModal() {
                     document.getElementById('assignModal').style.display = 'flex';
@@ -865,6 +909,50 @@ router.get('/assignments', async (req, res) => {
                 function closeAssignModal() {
                     document.getElementById('assignModal').style.display = 'none';
                 }
+                
+                function editAssignment(userId, storeId, userName) {
+                    document.getElementById('editUserId').value = userId;
+                    document.getElementById('editOldStoreId').value = storeId;
+                    document.getElementById('editStoreId').value = storeId;
+                    document.getElementById('editUserName').textContent = userName;
+                    document.getElementById('editAssignModal').style.display = 'flex';
+                }
+                
+                function closeEditAssignModal() {
+                    document.getElementById('editAssignModal').style.display = 'none';
+                }
+                
+                document.getElementById('editAssignForm').addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const userId = document.getElementById('editUserId').value;
+                    const oldStoreId = document.getElementById('editOldStoreId').value;
+                    const newStoreId = document.getElementById('editStoreId').value;
+                    
+                    if (oldStoreId === newStoreId) {
+                        closeEditAssignModal();
+                        return;
+                    }
+                    
+                    // Remove old assignment
+                    await fetch('/api/assignments/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ storeId: oldStoreId, userId: userId })
+                    });
+                    
+                    // Add new assignment
+                    const formData = new FormData();
+                    formData.append('userId', userId);
+                    formData.append('storeId', newStoreId);
+                    
+                    await fetch('/admin/assignments/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'userId=' + userId + '&storeId=' + newStoreId
+                    });
+                    
+                    location.reload();
+                });
                 
                 async function unassign(storeId, userId) {
                     if (confirm('Remove this assignment?')) {
@@ -885,6 +973,11 @@ router.get('/assignments', async (req, res) => {
 });
 
 router.post('/assignments/save', async (req, res) => {
+    // Only Admin can save assignments
+    if (req.currentUser.role !== 'Admin') {
+        return res.status(403).send('Access denied. Admin only.');
+    }
+    
     try {
         const { userId, storeId } = req.body;
         console.log('[ADMIN] Saving assignment - userId:', userId, 'storeId:', storeId, 'assignedBy:', req.currentUser.id);
@@ -922,6 +1015,19 @@ function formatDate(date) {
 }
 
 function renderAdminPage(user, activeTab, content) {
+    const impersonationBanner = user.isImpersonating ? `
+        <div id="impersonationBanner" style="background: linear-gradient(90deg, #ff6b6b, #ee5a5a); color: white; padding: 10px 20px; text-align: center; position: sticky; top: 0; z-index: 9999; display: flex; justify-content: center; align-items: center; gap: 15px;">
+            <span>👁️ <strong>Viewing as:</strong> ${user.displayName} (${user.role})</span>
+            <button onclick="stopImpersonation()" style="background: white; color: #ee5a5a; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">✕ Stop Viewing</button>
+        </div>
+        <script>
+            async function stopImpersonation() {
+                await fetch('/api/impersonate/stop', { method: 'POST' });
+                window.location.href = '/admin/users';
+            }
+        </script>
+    ` : '';
+    
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -932,6 +1038,7 @@ function renderAdminPage(user, activeTab, content) {
             <link rel="stylesheet" href="/css/main.css">
         </head>
         <body>
+            ${impersonationBanner}
             <nav class="navbar">
                 <div class="nav-brand">
                     <span class="nav-logo">📋</span>
@@ -949,8 +1056,8 @@ function renderAdminPage(user, activeTab, content) {
                 <aside class="admin-sidebar">
                     <a href="/admin/questions" class="sidebar-link ${activeTab === 'questions' ? 'active' : ''}">📋 Questions</a>
                     <a href="/admin/stores" class="sidebar-link ${activeTab === 'stores' ? 'active' : ''}">🏪 Stores</a>
-                    <a href="/admin/users" class="sidebar-link ${activeTab === 'users' ? 'active' : ''}">👥 Users</a>
-                    <a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>
+                    ${user.role === 'Admin' ? `<a href="/admin/users" class="sidebar-link ${activeTab === 'users' ? 'active' : ''}">👥 Users</a>` : ''}
+                    ${user.role === 'Admin' ? `<a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>` : ''}
                 </aside>
                 
                 <main class="admin-content">

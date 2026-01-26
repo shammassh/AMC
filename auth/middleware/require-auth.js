@@ -3,6 +3,7 @@
  */
 
 const SessionManager = require('../services/session-manager');
+const DatabaseService = require('../../services/database-service');
 
 async function requireAuth(req, res, next) {
     try {
@@ -32,6 +33,38 @@ async function requireAuth(req, res, next) {
             isActive: session.IsActive,
             accessToken: session.azure_access_token  // User's Azure access token for delegated API calls
         };
+        
+        // Store the real user info (for impersonation)
+        req.realUser = { ...req.currentUser };
+        
+        // Check for impersonation (Admin only)
+        const impersonateId = req.cookies.impersonate_user;
+        console.log('[AUTH] Impersonate check - cookie:', impersonateId, 'sessionRole:', session.Role);
+        if (impersonateId && session.Role === 'Admin') {
+            const result = await DatabaseService.query(`
+                SELECT u.*, r.RoleName as Role
+                FROM Users u
+                LEFT JOIN UserRoles r ON u.RoleId = r.Id
+                WHERE u.Id = @userId
+            `, { userId: parseInt(impersonateId) });
+            
+            console.log('[AUTH] Impersonation query result:', result.recordset);
+            
+            if (result.recordset.length > 0) {
+                const impUser = result.recordset[0];
+                console.log('[AUTH] Impersonating as:', impUser.DisplayName, 'Role:', impUser.Role);
+                req.currentUser = {
+                    id: impUser.Id,
+                    email: impUser.Email,
+                    displayName: impUser.DisplayName,
+                    role: impUser.Role,
+                    isApproved: impUser.IsApproved,
+                    isActive: impUser.IsActive,
+                    accessToken: session.azure_access_token,
+                    isImpersonating: true
+                };
+            }
+        }
         
         req.sessionToken = sessionToken;
         

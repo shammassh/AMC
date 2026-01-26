@@ -442,6 +442,19 @@ function escapeHtml(text) {
 }
 
 function renderChecklistPage(user, content) {
+    const impersonationBanner = user.isImpersonating ? `
+        <div id="impersonationBanner" style="background: linear-gradient(90deg, #ff6b6b, #ee5a5a); color: white; padding: 10px 20px; text-align: center; position: sticky; top: 0; z-index: 9999; display: flex; justify-content: center; align-items: center; gap: 15px;">
+            <span>👁️ <strong>Viewing as:</strong> ${user.displayName} (${user.role})</span>
+            <button onclick="stopImpersonation()" style="background: white; color: #ee5a5a; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">✕ Stop Viewing</button>
+        </div>
+        <script>
+            async function stopImpersonation() {
+                await fetch('/api/impersonate/stop', { method: 'POST' });
+                window.location.href = '/admin/users';
+            }
+        </script>
+    ` : '';
+    
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -452,6 +465,7 @@ function renderChecklistPage(user, content) {
             <link rel="stylesheet" href="/css/main.css">
         </head>
         <body>
+            ${impersonationBanner}
             <nav class="navbar">
                 <div class="nav-brand">
                     <span class="nav-logo">📋</span>

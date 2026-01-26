@@ -101,11 +101,11 @@ router.get('/', async (req, res) => {
 
             ${req.currentUser.role === 'Admin' || req.currentUser.role === 'HeadOfOperations' ? `
                 <div class="admin-quick-links">
-                    <h3>Admin Quick Links</h3>
+                    <h3>${req.currentUser.role === 'Admin' ? 'Admin' : 'Management'} Quick Links</h3>
                     <a href="/admin/questions" class="btn btn-secondary">📋 Manage Questions</a>
                     <a href="/admin/stores" class="btn btn-secondary">🏪 Manage Stores</a>
-                    <a href="/admin/users" class="btn btn-secondary">👥 Manage Users</a>
-                    <a href="/admin/assignments" class="btn btn-secondary">📌 Store Assignments</a>
+                    ${req.currentUser.role === 'Admin' ? '<a href="/admin/users" class="btn btn-secondary">👥 Manage Users</a>' : ''}
+                    ${req.currentUser.role === 'Admin' ? '<a href="/admin/assignments" class="btn btn-secondary">📌 Store Assignments</a>' : ''}
                 </div>
             ` : ''}
         `));
@@ -140,6 +140,19 @@ function getScoreClass(score) {
 }
 
 function renderDashboardPage(user, content) {
+    const impersonationBanner = user.isImpersonating ? `
+        <div id="impersonationBanner" style="background: linear-gradient(90deg, #ff6b6b, #ee5a5a); color: white; padding: 10px 20px; text-align: center; position: sticky; top: 0; z-index: 9999; display: flex; justify-content: center; align-items: center; gap: 15px;">
+            <span>👁️ <strong>Viewing as:</strong> ${user.displayName} (${user.role})</span>
+            <button onclick="stopImpersonation()" style="background: white; color: #ee5a5a; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">✕ Stop Viewing</button>
+        </div>
+        <script>
+            async function stopImpersonation() {
+                await fetch('/api/impersonate/stop', { method: 'POST' });
+                window.location.href = '/admin/users';
+            }
+        </script>
+    ` : '';
+    
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -150,6 +163,7 @@ function renderDashboardPage(user, content) {
             <link rel="stylesheet" href="/css/main.css">
         </head>
         <body>
+            ${impersonationBanner}
             <nav class="navbar">
                 <div class="nav-brand">
                     <span class="nav-logo">📋</span>
