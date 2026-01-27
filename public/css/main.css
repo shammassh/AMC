@@ -1196,8 +1196,189 @@ h1, h2, h3 {
     background: #c82333;
 }
 
+/* ==========================================
+   Sticky Progress Bar
+   ========================================== */
+.progress-sticky {
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 90;
+    background: var(--card-bg);
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.progress-info {
+    display: flex;
+    gap: 20px;
+    font-weight: 600;
+    min-width: 200px;
+}
+
+.progress-bar-container {
+    flex: 1;
+    min-width: 200px;
+    height: 10px;
+    background: #e9ecef;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* ==========================================
+   Compact Question Cards
+   ========================================== */
+.questions-container.compact-mode .question-card.compact {
+    margin-bottom: 8px;
+}
+
+.question-card.compact .question-header {
+    cursor: pointer;
+    padding: 12px 15px;
+    transition: background 0.2s;
+}
+
+.question-card.compact .question-header:hover {
+    background: #f0f4f8;
+}
+
+.question-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.expand-icon {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.answer-badge {
+    display: none;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.answer-badge.badge-yes {
+    display: inline-block;
+    background: #d4edda;
+    color: #155724;
+}
+
+.answer-badge.badge-no {
+    display: inline-block;
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.answer-badge.badge-na {
+    display: inline-block;
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.question-inline-answer {
+    padding: 0 15px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.answer-buttons.inline {
+    display: flex;
+    gap: 8px;
+}
+
+.answer-buttons.inline .answer-option {
+    padding: 8px 20px;
+    min-width: auto;
+}
+
+.answer-buttons.inline .answer-option span {
+    font-size: 16px;
+}
+
+.question-body.collapsed {
+    display: none;
+}
+
+.question-card.answered {
+    border-left: 4px solid var(--success-color);
+}
+
+.question-card.answered .question-number {
+    background: var(--success-color);
+}
+
+/* Highlight animation for unanswered scroll */
+@keyframes highlightPulse {
+    0%, 100% { box-shadow: var(--shadow); }
+    50% { box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.4); }
+}
+
+.question-card.highlight-pulse {
+    animation: highlightPulse 0.5s ease 3;
+}
+
+/* Compact upload button */
+.image-upload-btn.compact {
+    padding: 12px 20px;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.image-upload-btn.compact span {
+    font-size: 14px;
+}
+
+/* Score colors */
+.score-good {
+    color: var(--success-color) !important;
+}
+
+.score-warning {
+    color: var(--warning-color) !important;
+}
+
+.score-bad {
+    color: var(--danger-color) !important;
+}
+
 /* Mobile Adjustments for Question Cards */
 @media (max-width: 768px) {
+    .progress-sticky {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .progress-info {
+        justify-content: space-between;
+    }
+    
+    .quick-actions {
+        justify-content: center;
+    }
+    
     .question-header {
         flex-wrap: wrap;
         gap: 10px;
@@ -1219,5 +1400,8 @@ h1, h2, h3 {
     .image-upload-btn {
         padding: 20px;
     }
+    
+    .answer-buttons.inline {
+        justify-content: center;
+    }
 }
-

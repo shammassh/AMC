@@ -85,6 +85,22 @@ router.get('/new', async (req, res) => {
                 <h1>📝 New Checklist Audit</h1>
             </div>
 
+            <!-- Sticky Progress Bar -->
+            <div class="progress-sticky">
+                <div class="progress-info">
+                    <span id="progressText">0 of ${questions.length} answered</span>
+                    <span id="scoreDisplay">Score: 0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="quick-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="expandAll()">Expand All</button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="collapseAll()">Collapse All</button>
+                    <button type="button" class="btn btn-sm btn-warning" onclick="scrollToUnanswered()">Next Unanswered</button>
+                </div>
+            </div>
+
             <form id="checklistForm" action="/checklist/submit" method="POST" enctype="multipart/form-data">
                 <div class="checklist-setup">
                     <div class="form-row">
@@ -104,49 +120,51 @@ router.get('/new', async (req, res) => {
                     </div>
                 </div>
 
-                <div class="questions-container">
+                <div class="questions-container compact-mode">
                     ${questions.map((q, i) => `
-                        <div class="question-card" data-question-id="${q.Id}">
-                            <div class="question-header">
+                        <div class="question-card compact" data-question-id="${q.Id}" data-answered="false">
+                            <div class="question-header" onclick="toggleQuestion(this)">
                                 <span class="question-number">${i + 1}</span>
                                 <span class="question-text">${escapeHtml(q.QuestionText)}</span>
-                                <span class="question-coef">Coef: ${q.Coefficient}</span>
+                                <div class="question-header-right">
+                                    <span class="answer-badge" id="badge_${i}"></span>
+                                    <span class="question-coef">×${q.Coefficient}</span>
+                                    <span class="expand-icon">▲</span>
+                                </div>
                             </div>
                             
                             <input type="hidden" name="questions[${i}][id]" value="${q.Id}">
                             <input type="hidden" name="questions[${i}][coefficient]" value="${q.Coefficient}">
                             
-                            <div class="question-body">
-                                <div class="answer-section">
-                                    <label class="section-label">Answer</label>
-                                    <div class="answer-buttons">
-                                        <label class="answer-option yes">
-                                            <input type="radio" name="questions[${i}][answer]" value="Yes" required>
-                                            <span>✓ Yes</span>
-                                        </label>
-                                        <label class="answer-option no">
-                                            <input type="radio" name="questions[${i}][answer]" value="No">
-                                            <span>✗ No</span>
-                                        </label>
-                                        <label class="answer-option na">
-                                            <input type="radio" name="questions[${i}][answer]" value="NA">
-                                            <span>N/A</span>
-                                        </label>
-                                    </div>
+                            <div class="question-inline-answer">
+                                <div class="answer-buttons inline">
+                                    <label class="answer-option yes" title="Yes">
+                                        <input type="radio" name="questions[${i}][answer]" value="Yes" required onchange="handleAnswer(${i}, 'Yes')">
+                                        <span>✓</span>
+                                    </label>
+                                    <label class="answer-option no" title="No">
+                                        <input type="radio" name="questions[${i}][answer]" value="No" onchange="handleAnswer(${i}, 'No')">
+                                        <span>✗</span>
+                                    </label>
+                                    <label class="answer-option na" title="N/A">
+                                        <input type="radio" name="questions[${i}][answer]" value="NA" onchange="handleAnswer(${i}, 'NA')">
+                                        <span>—</span>
+                                    </label>
                                 </div>
-                                
+                            </div>
+                            
+                            <div class="question-body">
                                 <div class="notes-section">
                                     <label class="section-label">Notes / Description</label>
-                                    <textarea name="questions[${i}][comment]" placeholder="Add notes or description for this item..." rows="2"></textarea>
+                                    <textarea name="questions[${i}][comment]" placeholder="Add notes..." rows="2"></textarea>
                                 </div>
                                 
                                 <div class="image-section">
                                     <label class="section-label">Photo Evidence</label>
                                     <div class="image-upload-area" data-index="${i}">
                                         <input type="file" name="image_${q.Id}" accept="image/*" capture="environment" class="image-input" id="image_${i}">
-                                        <label for="image_${i}" class="image-upload-btn">
-                                            <span class="upload-icon">📷</span>
-                                            <span class="upload-text">Tap to add photo</span>
+                                        <label for="image_${i}" class="image-upload-btn compact">
+                                            <span>📷 Add Photo</span>
                                         </label>
                                         <div class="image-preview" style="display:none;">
                                             <img src="" alt="Preview">
@@ -167,6 +185,10 @@ router.get('/new', async (req, res) => {
                     
                     <div class="score-preview">
                         <div class="score-item">
+                            <span class="score-label">Total Coef:</span>
+                            <span id="totalCoef">0</span>
+                        </div>
+                        <div class="score-item">
                             <span class="score-label">Applicable Coef:</span>
                             <span id="applicableCoef">0</span>
                         </div>
@@ -176,30 +198,110 @@ router.get('/new', async (req, res) => {
                         </div>
                         <div class="score-item score-total">
                             <span class="score-label">Score:</span>
-                            <span id="scorePercent">0%</span>
+                            <span id="scorePercent">0</span>
                         </div>
                     </div>
 
                     <div class="form-actions">
                         <a href="/dashboard" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary btn-lg">Submit Checklist</button>
+                        <button type="button" class="btn btn-primary btn-lg" onclick="validateAndSubmit()">Submit Checklist</button>
                     </div>
                 </div>
             </form>
 
             <script>
-                // Live score calculation
-                document.querySelectorAll('input[type="radio"]').forEach(radio => {
-                    radio.addEventListener('change', updateScore);
-                });
+                const totalQuestions = ${questions.length};
+                
+                // Handle answer selection
+                function handleAnswer(index, value) {
+                    const card = document.querySelectorAll('.question-card')[index];
+                    const badge = document.getElementById('badge_' + index);
+                    
+                    // Update badge
+                    if (value === 'Yes') {
+                        badge.textContent = '✓';
+                        badge.className = 'answer-badge badge-yes';
+                    } else if (value === 'No') {
+                        badge.textContent = '✗';
+                        badge.className = 'answer-badge badge-no';
+                    } else {
+                        badge.textContent = '—';
+                        badge.className = 'answer-badge badge-na';
+                    }
+                    
+                    card.setAttribute('data-answered', 'true');
+                    card.classList.add('answered');
+                    
+                    updateProgress();
+                    updateScore();
+                }
+                
+                // Update progress bar
+                function updateProgress() {
+                    const answered = document.querySelectorAll('.question-card[data-answered="true"]').length;
+                    const percent = (answered / totalQuestions * 100).toFixed(0);
+                    
+                    document.getElementById('progressBar').style.width = percent + '%';
+                    document.getElementById('progressText').textContent = answered + ' of ' + totalQuestions + ' answered';
+                }
+                
+                // Toggle question expand/collapse
+                function toggleQuestion(header) {
+                    const card = header.closest('.question-card');
+                    const body = card.querySelector('.question-body');
+                    const icon = card.querySelector('.expand-icon');
+                    
+                    if (body.classList.contains('collapsed')) {
+                        body.classList.remove('collapsed');
+                        icon.textContent = '▲';
+                    } else {
+                        body.classList.add('collapsed');
+                        icon.textContent = '▼';
+                    }
+                }
+                
+                // Expand all questions
+                function expandAll() {
+                    document.querySelectorAll('.question-body').forEach(body => {
+                        body.classList.remove('collapsed');
+                    });
+                    document.querySelectorAll('.expand-icon').forEach(icon => {
+                        icon.textContent = '▲';
+                    });
+                }
+                
+                // Collapse all questions
+                function collapseAll() {
+                    document.querySelectorAll('.question-body').forEach(body => {
+                        body.classList.add('collapsed');
+                    });
+                    document.querySelectorAll('.expand-icon').forEach(icon => {
+                        icon.textContent = '▼';
+                    });
+                }
+                
+                // Scroll to next unanswered
+                function scrollToUnanswered() {
+                    const unanswered = document.querySelector('.question-card:not([data-answered="true"])');
+                    if (unanswered) {
+                        unanswered.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        unanswered.classList.add('highlight-pulse');
+                        setTimeout(() => unanswered.classList.remove('highlight-pulse'), 1500);
+                    } else {
+                        alert('All questions have been answered!');
+                    }
+                }
 
                 function updateScore() {
+                    let totalCoef = 0;
                     let applicableCoef = 0;
                     let earned = 0;
 
                     document.querySelectorAll('.question-card').forEach(card => {
                         const coef = parseFloat(card.querySelector('input[name$="[coefficient]"]').value);
                         const checked = card.querySelector('input[type="radio"]:checked');
+                        
+                        totalCoef += coef;  // Always add to total
                         
                         if (checked) {
                             if (checked.value === 'Yes') {
@@ -209,19 +311,24 @@ router.get('/new', async (req, res) => {
                                 applicableCoef += coef;
                                 earned += 0;
                             }
-                            // NA = not counted
+                            // NA = not counted in applicable
                         }
                     });
 
                     const percent = applicableCoef > 0 ? (earned / applicableCoef * 100).toFixed(1) : 0;
                     
+                    document.getElementById('totalCoef').textContent = totalCoef.toFixed(2);
                     document.getElementById('applicableCoef').textContent = applicableCoef.toFixed(2);
                     document.getElementById('earnedValue').textContent = earned.toFixed(2);
-                    document.getElementById('scorePercent').textContent = percent + '%';
+                    document.getElementById('scorePercent').textContent = earned.toFixed(2);
+                    document.getElementById('scoreDisplay').textContent = 'Score: ' + earned.toFixed(2);
                     
-                    // Color code
+                    // Color code based on percentage
                     const scoreEl = document.getElementById('scorePercent');
-                    scoreEl.className = percent >= 80 ? 'score-good' : percent >= 60 ? 'score-warning' : 'score-bad';
+                    const scoreDisplay = document.getElementById('scoreDisplay');
+                    const className = percent >= 80 ? 'score-good' : percent >= 60 ? 'score-warning' : 'score-bad';
+                    scoreEl.className = className;
+                    scoreDisplay.className = className;
                 }
 
                 // Image preview functionality
@@ -253,6 +360,45 @@ router.get('/new', async (req, res) => {
                     input.value = '';
                     preview.style.display = 'none';
                     uploadBtn.style.display = 'flex';
+                }
+                
+                // Initialize total on page load
+                updateScore();
+                
+                // Validate and submit form
+                function validateAndSubmit() {
+                    const form = document.getElementById('checklistForm');
+                    const store = form.querySelector('select[name="storeId"]');
+                    
+                    // Check store selected
+                    if (!store.value) {
+                        alert('Please select a Store');
+                        store.focus();
+                        store.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return;
+                    }
+                    
+                    // Check all questions answered
+                    const unanswered = [];
+                    document.querySelectorAll('.question-card').forEach((card, index) => {
+                        const checked = card.querySelector('input[type="radio"]:checked');
+                        if (!checked) {
+                            unanswered.push(index + 1);
+                        }
+                    });
+                    
+                    if (unanswered.length > 0) {
+                        alert('Please answer all questions.\\n\\nUnanswered questions: ' + unanswered.join(', '));
+                        // Scroll to first unanswered
+                        const firstUnanswered = document.querySelectorAll('.question-card')[unanswered[0] - 1];
+                        firstUnanswered.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstUnanswered.classList.add('highlight-pulse');
+                        setTimeout(() => firstUnanswered.classList.remove('highlight-pulse'), 1500);
+                        return;
+                    }
+                    
+                    // All good - submit the form
+                    form.submit();
                 }
             </script>
         `));
@@ -330,7 +476,7 @@ router.get('/success/:documentNumber', async (req, res) => {
                     <p><strong>Document Number:</strong> ${checklist.DocumentNumber}</p>
                     <p><strong>Store:</strong> ${escapeHtml(checklist.StoreName)}</p>
                     <p><strong>Date:</strong> ${new Date(checklist.AuditDate).toLocaleDateString('en-GB')}</p>
-                    <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.ScorePercentage.toFixed(1)}%</span></p>
+                    <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.TotalEarned.toFixed(2)}</span></p>
                 </div>
                 <div class="success-actions">
                     <a href="/checklist/view/${checklist.Id}" class="btn btn-secondary">View Details</a>
@@ -369,7 +515,7 @@ router.get('/view/:id', async (req, res) => {
                         </p>
                     </div>
                     <div class="view-score ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">
-                        ${checklist.ScorePercentage.toFixed(1)}%
+                        ${checklist.TotalEarned.toFixed(2)}
                     </div>
                 </div>
 

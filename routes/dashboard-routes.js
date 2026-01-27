@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
                                 <td>${formatDate(c.AuditDate)}</td>
                                 <td>${escapeHtml(c.SubmittedByName)}</td>
                                 <td class="center">
-                                    <span class="score-badge ${getScoreClass(c.ScorePercentage)}">${c.ScorePercentage.toFixed(1)}%</span>
+                                    <span class="score-badge ${getScoreClass(c.ScorePercentage)}">${c.TotalEarned.toFixed(2)}</span>
                                 </td>
                                 <td class="center">
                                     <span class="badge badge-success">${c.Status}</span>
