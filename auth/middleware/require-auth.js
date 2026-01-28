@@ -115,6 +115,7 @@ function requireRole(allowedRoles) {
             <html>
             <head>
                 <title>Access Denied</title>
+                <link rel="icon" type="image/x-icon" href="/favicon.ico">
                 <link rel="stylesheet" href="/css/main.css">
             </head>
             <body>

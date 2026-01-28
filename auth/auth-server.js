@@ -63,6 +63,7 @@ class AuthServer {
                 <html>
                 <head>
                     <title>Pending Approval</title>
+                    <link rel="icon" type="image/x-icon" href="/favicon.ico">
                     <link rel="stylesheet" href="/css/main.css">
                 </head>
                 <body>
