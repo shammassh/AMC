@@ -320,8 +320,8 @@ router.get('/new', async (req, res) => {
                     document.getElementById('totalCoef').textContent = totalCoef.toFixed(2);
                     document.getElementById('applicableCoef').textContent = applicableCoef.toFixed(2);
                     document.getElementById('earnedValue').textContent = earned.toFixed(2);
-                    document.getElementById('scorePercent').textContent = earned.toFixed(2);
-                    document.getElementById('scoreDisplay').textContent = 'Score: ' + earned.toFixed(2);
+                    document.getElementById('scorePercent').textContent = percent + '%';
+                    document.getElementById('scoreDisplay').textContent = 'Score: ' + percent + '%';
                     
                     // Color code based on percentage
                     const scoreEl = document.getElementById('scorePercent');
@@ -476,7 +476,7 @@ router.get('/success/:documentNumber', async (req, res) => {
                     <p><strong>Document Number:</strong> ${checklist.DocumentNumber}</p>
                     <p><strong>Store:</strong> ${escapeHtml(checklist.StoreName)}</p>
                     <p><strong>Date:</strong> ${new Date(checklist.AuditDate).toLocaleDateString('en-GB')}</p>
-                    <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.TotalEarned.toFixed(2)}</span></p>
+                    <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.ScorePercentage.toFixed(1)}%</span></p>
                 </div>
                 <div class="success-actions">
                     <a href="/checklist/view/${checklist.Id}" class="btn btn-secondary">View Details</a>
