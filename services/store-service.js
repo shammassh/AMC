@@ -136,6 +136,26 @@ class StoreService {
     }
 
     /**
+     * Remove assignment (alias for unassignFromUser)
+     */
+    static async removeAssignment(storeId, userId) {
+        return this.unassignFromUser(storeId, userId);
+    }
+
+    /**
+     * Get assignments for a specific user
+     */
+    static async getAssignmentsByUser(userId) {
+        const result = await DatabaseService.query(`
+            SELECT sa.StoreId, s.StoreName
+            FROM StoreAssignments sa
+            INNER JOIN Stores s ON sa.StoreId = s.Id
+            WHERE sa.UserId = @userId AND sa.IsActive = 1
+        `, { userId });
+        return result.recordset;
+    }
+
+    /**
      * Get all assignments with details
      */
     static async getAllAssignments() {

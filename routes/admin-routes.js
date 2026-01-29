@@ -812,10 +812,29 @@ router.get('/assignments', async (req, res) => {
         const stores = await StoreService.getActive();
         const assignments = await StoreService.getAllAssignments();
         
+        // Group assignments by user
+        const groupedAssignments = {};
+        assignments.forEach(a => {
+            if (!groupedAssignments[a.UserId]) {
+                groupedAssignments[a.UserId] = {
+                    UserId: a.UserId,
+                    UserName: a.UserName,
+                    UserEmail: a.UserEmail,
+                    Stores: []
+                };
+            }
+            groupedAssignments[a.UserId].Stores.push({
+                StoreId: a.StoreId,
+                StoreName: a.StoreName,
+                AssignedAt: a.AssignedAt
+            });
+        });
+        const groupedList = Object.values(groupedAssignments);
+
         res.send(renderAdminPage(req.currentUser, 'assignments', `
             <div class="admin-header">
                 <h1>📌 Store Assignments</h1>
-                <button class="btn btn-primary" onclick="showAssignModal()">+ Assign Store</button>
+                <button class="btn btn-primary" onclick="showAssignModal()">+ Assign Stores</button>
             </div>
 
             <table class="data-table">
@@ -823,36 +842,53 @@ router.get('/assignments', async (req, res) => {
                     <tr>
                         <th>Area Manager</th>
                         <th>Email</th>
-                        <th>Store</th>
-                        <th>Assigned Date</th>
-                        <th width="100">Actions</th>
+                        <th>Assigned Stores</th>
+                        <th width="120">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${assignments.length === 0 ? '<tr><td colspan="5" class="center">No assignments yet</td></tr>' : ''}
-                    ${assignments.map(a => `
+                    ${groupedList.length === 0 ? '<tr><td colspan="4" class="center">No assignments yet</td></tr>' : ''}
+                    ${groupedList.map(g => `
                         <tr>
-                            <td>${escapeHtml(a.UserName)}</td>
-                            <td>${escapeHtml(a.UserEmail)}</td>
-                            <td>${escapeHtml(a.StoreName)}</td>
-                            <td>${formatDate(a.AssignedAt)}</td>
+                            <td><strong>${escapeHtml(g.UserName)}</strong></td>
+                            <td>${escapeHtml(g.UserEmail)}</td>
+                            <td>
+                                <div class="store-tags">
+                                    ${g.Stores.map(s => `<span class="store-tag">${escapeHtml(s.StoreName)}</span>`).join('')}
+                                </div>
+                            </td>
                             <td class="center">
-                                <button class="btn btn-sm btn-secondary" onclick="editAssignment(${a.UserId}, ${a.StoreId}, '${escapeHtml(a.UserName).replace(/'/g, "\\'")}')">Edit</button>
-                                <button class="btn btn-sm btn-danger" onclick="unassign(${a.StoreId}, ${a.UserId})">Remove</button>
+                                <button class="btn btn-sm btn-primary" onclick="editUserStores(${g.UserId}, '${escapeHtml(g.UserName).replace(/'/g, "\\'")}')">Edit Stores</button>
                             </td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
 
+            <style>
+                .store-tags {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px;
+                }
+                .store-tag {
+                    background: #e3f2fd;
+                    color: #1565c0;
+                    padding: 4px 10px;
+                    border-radius: 12px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+            </style>
+
             <!-- Assign Modal -->
             <div id="assignModal" class="modal">
-                <div class="modal-content">
-                    <h2>Assign Store to Area Manager</h2>
+                <div class="modal-content" style="max-width: 600px;">
+                    <h2 id="assignModalTitle">Assign Stores to Area Manager</h2>
                     <form action="/admin/assignments/save" method="POST">
-                        <div class="form-group">
+                        <div class="form-group" id="userSelectGroup">
                             <label>Area Manager</label>
-                            <select name="userId" required>
+                            <select name="userId" id="assignUserId" required onchange="updateStoreCheckboxes()">
                                 <option value="">-- Select Area Manager --</option>
                                 ${areaManagers.map(u => `
                                     <option value="${u.Id}">${escapeHtml(u.DisplayName)} (${u.Email})</option>
@@ -860,49 +896,73 @@ router.get('/assignments', async (req, res) => {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Store</label>
-                            <select name="storeId" required>
-                                <option value="">-- Select Store --</option>
+                            <label>Select Stores (check all that apply)</label>
+                            <div id="storeCheckboxes" class="checkbox-grid">
                                 ${stores.map(s => `
-                                    <option value="${s.Id}">${escapeHtml(s.StoreName)}</option>
+                                    <label class="checkbox-item" data-store-id="${s.Id}">
+                                        <input type="checkbox" name="storeIds" value="${s.Id}">
+                                        <span>${escapeHtml(s.StoreName)}</span>
+                                    </label>
                                 `).join('')}
-                            </select>
+                            </div>
                         </div>
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Assign</button>
+                            <button type="submit" class="btn btn-primary">Save Assignments</button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <!-- Edit Assignment Modal -->
-            <div id="editAssignModal" class="modal">
-                <div class="modal-content">
-                    <h2>Edit Assignment</h2>
-                    <p style="margin-bottom: 15px; color: #666;">Changing store for: <strong id="editUserName"></strong></p>
-                    <form id="editAssignForm">
-                        <input type="hidden" id="editUserId" name="userId">
-                        <input type="hidden" id="editOldStoreId" name="oldStoreId">
-                        <div class="form-group">
-                            <label>New Store</label>
-                            <select id="editStoreId" name="storeId" required>
-                                <option value="">-- Select Store --</option>
-                                ${stores.map(s => `
-                                    <option value="${s.Id}">${escapeHtml(s.StoreName)}</option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" onclick="closeEditAssignModal()">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <style>
+                .checkbox-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                    gap: 10px;
+                    max-height: 300px;
+                    overflow-y: auto;
+                    padding: 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    background: #f9f9f9;
+                }
+                .checkbox-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    background: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .checkbox-item:hover {
+                    border-color: #0078d4;
+                    background: #f0f7ff;
+                }
+                .checkbox-item input:checked + span {
+                    font-weight: 600;
+                    color: #0078d4;
+                }
+                .checkbox-item.already-assigned {
+                    background: #e8f5e9;
+                    border-color: #4caf50;
+                }
+            </style>
 
             <script>
+                // Store current assignments for reference
+                const currentAssignments = ${JSON.stringify(assignments.map(a => ({ userId: a.UserId, storeId: a.StoreId })))};
+                
                 function showAssignModal() {
+                    document.getElementById('assignModalTitle').textContent = 'Assign Stores to Area Manager';
+                    document.getElementById('userSelectGroup').style.display = 'block';
+                    document.getElementById('assignUserId').value = '';
+                    document.querySelectorAll('#storeCheckboxes input').forEach(cb => {
+                        cb.checked = false;
+                        cb.closest('.checkbox-item').classList.remove('already-assigned');
+                    });
                     document.getElementById('assignModal').style.display = 'flex';
                 }
                 
@@ -910,49 +970,24 @@ router.get('/assignments', async (req, res) => {
                     document.getElementById('assignModal').style.display = 'none';
                 }
                 
-                function editAssignment(userId, storeId, userName) {
-                    document.getElementById('editUserId').value = userId;
-                    document.getElementById('editOldStoreId').value = storeId;
-                    document.getElementById('editStoreId').value = storeId;
-                    document.getElementById('editUserName').textContent = userName;
-                    document.getElementById('editAssignModal').style.display = 'flex';
+                function updateStoreCheckboxes() {
+                    const userId = parseInt(document.getElementById('assignUserId').value);
+                    document.querySelectorAll('#storeCheckboxes .checkbox-item').forEach(item => {
+                        const storeId = parseInt(item.dataset.storeId);
+                        const checkbox = item.querySelector('input');
+                        const isAssigned = currentAssignments.some(a => a.userId === userId && a.storeId === storeId);
+                        checkbox.checked = isAssigned;
+                        item.classList.toggle('already-assigned', isAssigned);
+                    });
                 }
                 
-                function closeEditAssignModal() {
-                    document.getElementById('editAssignModal').style.display = 'none';
+                function editUserStores(userId, userName) {
+                    document.getElementById('assignModalTitle').textContent = 'Edit Stores for ' + userName;
+                    document.getElementById('assignUserId').value = userId;
+                    document.getElementById('userSelectGroup').style.display = 'none';
+                    updateStoreCheckboxes();
+                    document.getElementById('assignModal').style.display = 'flex';
                 }
-                
-                document.getElementById('editAssignForm').addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    const userId = document.getElementById('editUserId').value;
-                    const oldStoreId = document.getElementById('editOldStoreId').value;
-                    const newStoreId = document.getElementById('editStoreId').value;
-                    
-                    if (oldStoreId === newStoreId) {
-                        closeEditAssignModal();
-                        return;
-                    }
-                    
-                    // Remove old assignment
-                    await fetch('/api/assignments/remove', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ storeId: oldStoreId, userId: userId })
-                    });
-                    
-                    // Add new assignment
-                    const formData = new FormData();
-                    formData.append('userId', userId);
-                    formData.append('storeId', newStoreId);
-                    
-                    await fetch('/admin/assignments/save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: 'userId=' + userId + '&storeId=' + newStoreId
-                    });
-                    
-                    location.reload();
-                });
                 
                 async function unassign(storeId, userId) {
                     if (confirm('Remove this assignment?')) {
@@ -979,16 +1014,41 @@ router.post('/assignments/save', async (req, res) => {
     }
     
     try {
-        const { userId, storeId } = req.body;
-        console.log('[ADMIN] Saving assignment - userId:', userId, 'storeId:', storeId, 'assignedBy:', req.currentUser.id);
+        const { userId, storeId, storeIds } = req.body;
+        const assignedBy = parseInt(req.currentUser.id) || 1;
         
-        if (!userId || !storeId) {
-            console.error('[ADMIN] Missing userId or storeId');
-            return res.status(400).send('Missing userId or storeId');
+        // Handle multiple stores (from checkboxes)
+        if (storeIds) {
+            const storeIdArray = Array.isArray(storeIds) ? storeIds : [storeIds];
+            console.log('[ADMIN] Saving multiple assignments - userId:', userId, 'storeIds:', storeIdArray);
+            
+            // Get current assignments for this user
+            const currentAssignments = await StoreService.getAssignmentsByUser(parseInt(userId));
+            const currentStoreIds = currentAssignments.map(a => a.StoreId);
+            
+            // Find stores to add and remove
+            const newStoreIds = storeIdArray.map(id => parseInt(id));
+            const toAdd = newStoreIds.filter(id => !currentStoreIds.includes(id));
+            const toRemove = currentStoreIds.filter(id => !newStoreIds.includes(id));
+            
+            // Remove unchecked assignments
+            for (const storeIdToRemove of toRemove) {
+                await StoreService.removeAssignment(storeIdToRemove, parseInt(userId));
+            }
+            
+            // Add new assignments
+            for (const storeIdToAdd of toAdd) {
+                await StoreService.assignToUser(storeIdToAdd, parseInt(userId), assignedBy);
+            }
+        } else if (storeId) {
+            // Single store assignment (legacy)
+            console.log('[ADMIN] Saving single assignment - userId:', userId, 'storeId:', storeId);
+            await StoreService.assignToUser(parseInt(storeId), parseInt(userId), assignedBy);
+        } else {
+            console.error('[ADMIN] Missing storeId or storeIds');
+            return res.status(400).send('Missing store selection');
         }
         
-        const assignedBy = parseInt(req.currentUser.id) || 1;
-        await StoreService.assignToUser(parseInt(storeId), parseInt(userId), assignedBy);
         res.redirect('/admin/assignments');
     } catch (error) {
         console.error('[ADMIN] Save assignment error:', error);
