@@ -195,7 +195,10 @@ router.get('/stores', async (req, res) => {
         res.send(renderAdminPage(req.currentUser, 'stores', `
             <div class="admin-header">
                 <h1>🏪 Stores</h1>
-                <button class="btn btn-primary" onclick="showAddStoreModal()">+ Add Store</button>
+                <div>
+                    <button class="btn btn-secondary" onclick="showBulkImportModal()">📥 Bulk Import</button>
+                    <button class="btn btn-primary" onclick="showAddStoreModal()">+ Add Store</button>
+                </div>
             </div>
 
             <table class="data-table">
@@ -250,6 +253,28 @@ router.get('/stores', async (req, res) => {
                 </div>
             </div>
 
+            <!-- Bulk Import Modal -->
+            <div id="bulkImportModal" class="modal">
+                <div class="modal-content" style="max-width: 600px;">
+                    <h2>📥 Bulk Import Stores</h2>
+                    <p style="color: #666; margin-bottom: 15px;">Enter one store per line. Format: <code>StoreName</code> or <code>StoreName, StoreCode</code></p>
+                    <form action="/admin/stores/bulk-import" method="POST">
+                        <div class="form-group">
+                            <label>Stores List</label>
+                            <textarea name="storesList" rows="12" style="width: 100%; font-family: monospace; padding: 10px;" placeholder="Happy Dbayeh, HDB
+Happy Jnah, HJN
+Happy Hazmieh
+Happy Tripoli
+Spinneys Kaslik"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="closeBulkImportModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Import Stores</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <script>
                 function showAddStoreModal() {
                     document.getElementById('storeModalTitle').textContent = 'Add Store';
@@ -269,6 +294,14 @@ router.get('/stores', async (req, res) => {
                 
                 function closeStoreModal() {
                     document.getElementById('storeModal').style.display = 'none';
+                }
+                
+                function showBulkImportModal() {
+                    document.getElementById('bulkImportModal').style.display = 'flex';
+                }
+                
+                function closeBulkImportModal() {
+                    document.getElementById('bulkImportModal').style.display = 'none';
                 }
                 
                 async function toggleStore(id) {
@@ -297,6 +330,43 @@ router.post('/stores/save', async (req, res) => {
     } catch (error) {
         console.error('[ADMIN] Save store error:', error);
         res.status(500).send('Error saving store');
+    }
+});
+
+router.post('/stores/bulk-import', async (req, res) => {
+    try {
+        const { storesList } = req.body;
+        
+        if (!storesList || !storesList.trim()) {
+            return res.redirect('/admin/stores');
+        }
+        
+        const lines = storesList.split('\n').filter(line => line.trim());
+        let imported = 0;
+        let skipped = 0;
+        
+        for (const line of lines) {
+            const parts = line.split(',').map(p => p.trim());
+            const storeName = parts[0];
+            const storeCode = parts[1] || null;
+            
+            if (storeName) {
+                try {
+                    await StoreService.create(storeName, storeCode);
+                    imported++;
+                } catch (err) {
+                    // Store might already exist
+                    console.log('[ADMIN] Skipped store (may exist):', storeName);
+                    skipped++;
+                }
+            }
+        }
+        
+        console.log(`[ADMIN] Bulk import: ${imported} imported, ${skipped} skipped`);
+        res.redirect('/admin/stores');
+    } catch (error) {
+        console.error('[ADMIN] Bulk import error:', error);
+        res.status(500).send('Error importing stores');
     }
 });
 
