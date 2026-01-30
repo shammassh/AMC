@@ -10,6 +10,7 @@ const QuestionService = require('../services/question-service');
 const StoreService = require('../services/store-service');
 const UserService = require('../services/user-service');
 const SharePointService = require('../services/sharepoint-service');
+const SettingsService = require('../services/settings-service');
 
 // ==========================================
 // Admin Dashboard
@@ -1127,6 +1128,121 @@ router.post('/assignments/save', async (req, res) => {
 });
 
 // ==========================================
+// System Settings
+// ==========================================
+
+router.get('/settings', async (req, res) => {
+    // Admin and HeadOfOperations can access settings
+    if (req.currentUser.role !== 'Admin' && req.currentUser.role !== 'HeadOfOperations') {
+        return res.status(403).send('Access denied.');
+    }
+    
+    try {
+        const passingScore = await SettingsService.getPassingScore();
+        const settings = await SettingsService.getAll();
+        
+        res.send(renderAdminPage(req.currentUser, 'settings', `
+            <div class="admin-header">
+                <h1>⚙️ System Settings</h1>
+            </div>
+
+            <div class="settings-section">
+                <h2>Scoring Settings</h2>
+                <form action="/admin/settings/save" method="POST" class="settings-form">
+                    <div class="form-group">
+                        <label>Passing Score Threshold (%)</label>
+                        <div class="input-with-help">
+                            <input type="number" name="passingScore" value="${passingScore}" min="0" max="100" step="0.1" required style="width: 120px;">
+                            <span class="help-text">Checklists with scores >= this value will show as "Pass", otherwise "Fail"</span>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="settings-section" style="margin-top: 30px;">
+                <h2>All Settings</h2>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Setting</th>
+                            <th>Value</th>
+                            <th>Description</th>
+                            <th>Last Updated</th>
+                            <th>Updated By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${settings.map(s => `
+                            <tr>
+                                <td><strong>${escapeHtml(s.SettingKey)}</strong></td>
+                                <td>${escapeHtml(s.SettingValue)}</td>
+                                <td>${escapeHtml(s.Description) || '-'}</td>
+                                <td>${s.UpdatedAt ? formatDate(s.UpdatedAt) : '-'}</td>
+                                <td>${escapeHtml(s.UpdatedByName) || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+
+            <style>
+                .settings-section {
+                    background: white;
+                    padding: 25px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .settings-section h2 {
+                    margin-top: 0;
+                    margin-bottom: 20px;
+                    color: #333;
+                    border-bottom: 2px solid #0078d4;
+                    padding-bottom: 10px;
+                }
+                .settings-form .form-group {
+                    margin-bottom: 20px;
+                }
+                .input-with-help {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+                .help-text {
+                    color: #666;
+                    font-size: 13px;
+                }
+            </style>
+        `));
+    } catch (error) {
+        console.error('[ADMIN] Settings error:', error);
+        res.status(500).send('Error loading settings');
+    }
+});
+
+router.post('/settings/save', async (req, res) => {
+    // Admin and HeadOfOperations can save settings
+    if (req.currentUser.role !== 'Admin' && req.currentUser.role !== 'HeadOfOperations') {
+        return res.status(403).send('Access denied.');
+    }
+    
+    try {
+        const { passingScore } = req.body;
+        
+        if (passingScore !== undefined) {
+            await SettingsService.set('PassingScore', passingScore, req.currentUser.id);
+        }
+        
+        res.redirect('/admin/settings');
+    } catch (error) {
+        console.error('[ADMIN] Save settings error:', error);
+        res.status(500).send('Error saving settings');
+    }
+});
+
+// ==========================================
 // Helper Functions
 // ==========================================
 
@@ -1189,6 +1305,7 @@ function renderAdminPage(user, activeTab, content) {
                     <a href="/admin/stores" class="sidebar-link ${activeTab === 'stores' ? 'active' : ''}">🏪 Stores</a>
                     ${user.role === 'Admin' ? `<a href="/admin/users" class="sidebar-link ${activeTab === 'users' ? 'active' : ''}">👥 Users</a>` : ''}
                     ${user.role === 'Admin' || user.role === 'HeadOfOperations' ? `<a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>` : ''}
+                    ${user.role === 'Admin' || user.role === 'HeadOfOperations' ? `<a href="/admin/settings" class="sidebar-link ${activeTab === 'settings' ? 'active' : ''}">⚙️ Settings</a>` : ''}
                 </aside>
                 
                 <main class="admin-content">

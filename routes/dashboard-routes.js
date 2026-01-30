@@ -9,6 +9,7 @@ const router = express.Router();
 const ChecklistService = require('../services/checklist-service');
 const StoreService = require('../services/store-service');
 const UserService = require('../services/user-service');
+const SettingsService = require('../services/settings-service');
 
 // ==========================================
 // Main Dashboard
@@ -55,6 +56,7 @@ router.get('/', async (req, res) => {
         }
 
         const stats = await ChecklistService.getStats();
+        const passingScore = await SettingsService.getPassingScore();
         const isAdminOrHOO = req.currentUser.role === 'Admin' || req.currentUser.role === 'HeadOfOperations';
 
         res.send(renderDashboardPage(req.currentUser, `
@@ -183,7 +185,9 @@ router.get('/', async (req, res) => {
                         </tr>
                     </thead>
                     <tbody>
-                        ${checklists.map(c => `
+                        ${checklists.map(c => {
+                            const passed = c.ScorePercentage >= passingScore;
+                            return `
                             <tr>
                                 <td><strong>${c.DocumentNumber}</strong></td>
                                 <td>${escapeHtml(c.StoreName)}</td>
@@ -193,13 +197,13 @@ router.get('/', async (req, res) => {
                                     <span class="score-badge ${getScoreClass(c.ScorePercentage)}">${c.ScorePercentage.toFixed(1)}%</span>
                                 </td>
                                 <td class="center">
-                                    <span class="badge badge-success">${c.Status}</span>
+                                    <span class="badge ${passed ? 'badge-success' : 'badge-danger'}">${passed ? 'Pass' : 'Fail'}</span>
                                 </td>
                                 <td class="center">
                                     <a href="/checklist/view/${c.Id}" class="btn btn-sm btn-secondary">View</a>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             `}

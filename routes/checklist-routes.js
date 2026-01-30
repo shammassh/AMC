@@ -12,6 +12,7 @@ const fs = require('fs');
 const QuestionService = require('../services/question-service');
 const StoreService = require('../services/store-service');
 const ChecklistService = require('../services/checklist-service');
+const SettingsService = require('../services/settings-service');
 
 // Configure multer for image uploads
 const storage = multer.diskStorage({
@@ -468,15 +469,19 @@ router.get('/success/:documentNumber', async (req, res) => {
             return res.status(404).send('Checklist not found');
         }
 
+        const passingScore = await SettingsService.getPassingScore();
+        const passed = checklist.ScorePercentage >= passingScore;
+
         res.send(renderChecklistPage(req.currentUser, `
             <div class="success-container">
-                <div class="success-icon">✓</div>
+                <div class="success-icon" style="background: ${passed ? '#28a745' : '#dc3545'};">${passed ? '✓' : '✗'}</div>
                 <h1>Checklist Submitted!</h1>
                 <div class="success-details">
                     <p><strong>Document Number:</strong> ${checklist.DocumentNumber}</p>
                     <p><strong>Store:</strong> ${escapeHtml(checklist.StoreName)}</p>
                     <p><strong>Date:</strong> ${new Date(checklist.AuditDate).toLocaleDateString('en-GB')}</p>
                     <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.ScorePercentage.toFixed(1)}%</span></p>
+                    <p><strong>Status:</strong> <span class="badge ${passed ? 'badge-success' : 'badge-danger'}">${passed ? 'PASS' : 'FAIL'}</span></p>
                 </div>
                 <div class="success-actions">
                     <a href="/checklist/view/${checklist.Id}" class="btn btn-secondary">View Details</a>
