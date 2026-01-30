@@ -872,9 +872,9 @@ user3@gmrlgroup.com, Bob Wilson"></textarea>
 // ==========================================
 
 router.get('/assignments', async (req, res) => {
-    // Only Admin can access assignments management
-    if (req.currentUser.role !== 'Admin') {
-        return res.status(403).send('Access denied. Admin only.');
+    // Admin and HeadOfOperations can access assignments management
+    if (req.currentUser.role !== 'Admin' && req.currentUser.role !== 'HeadOfOperations') {
+        return res.status(403).send('Access denied.');
     }
     
     try {
@@ -1078,9 +1078,9 @@ router.get('/assignments', async (req, res) => {
 });
 
 router.post('/assignments/save', async (req, res) => {
-    // Only Admin can save assignments
-    if (req.currentUser.role !== 'Admin') {
-        return res.status(403).send('Access denied. Admin only.');
+    // Admin and HeadOfOperations can save assignments
+    if (req.currentUser.role !== 'Admin' && req.currentUser.role !== 'HeadOfOperations') {
+        return res.status(403).send('Access denied.');
     }
     
     try {
@@ -1188,7 +1188,7 @@ function renderAdminPage(user, activeTab, content) {
                     <a href="/admin/questions" class="sidebar-link ${activeTab === 'questions' ? 'active' : ''}">📋 Questions</a>
                     <a href="/admin/stores" class="sidebar-link ${activeTab === 'stores' ? 'active' : ''}">🏪 Stores</a>
                     ${user.role === 'Admin' ? `<a href="/admin/users" class="sidebar-link ${activeTab === 'users' ? 'active' : ''}">👥 Users</a>` : ''}
-                    ${user.role === 'Admin' ? `<a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>` : ''}
+                    ${user.role === 'Admin' || user.role === 'HeadOfOperations' ? `<a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>` : ''}
                 </aside>
                 
                 <main class="admin-content">
