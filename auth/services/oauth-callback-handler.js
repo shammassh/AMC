@@ -98,13 +98,36 @@ class OAuthCallbackHandler {
         const displayName = userInfo.displayName || email;
         const azureOid = userInfo.id;
 
-        // Check if user exists
-        const existing = await pool.request()
+        // First, check if user exists by AzureOid (same user, any email domain)
+        const existingByOid = await pool.request()
+            .input('azureOid', sql.NVarChar, azureOid)
+            .query('SELECT * FROM Users WHERE AzureOid = @azureOid');
+
+        if (existingByOid.recordset.length > 0) {
+            // User found by AzureOid - update last login and email (in case it changed)
+            await pool.request()
+                .input('azureOid', sql.NVarChar, azureOid)
+                .input('email', sql.NVarChar, email)
+                .input('displayName', sql.NVarChar, displayName)
+                .query(`
+                    UPDATE Users 
+                    SET LastLoginAt = GETDATE(), 
+                        Email = @email,
+                        DisplayName = @displayName
+                    WHERE AzureOid = @azureOid
+                `);
+            
+            console.log(`[AUTH] User matched by AzureOid: ${existingByOid.recordset[0].Email} -> ${email}`);
+            return existingByOid.recordset[0];
+        }
+
+        // Second, check if user exists by Email (for users without AzureOid set yet)
+        const existingByEmail = await pool.request()
             .input('email', sql.NVarChar, email)
             .query('SELECT * FROM Users WHERE LOWER(Email) = @email');
 
-        if (existing.recordset.length > 0) {
-            // Update last login
+        if (existingByEmail.recordset.length > 0) {
+            // Update last login and set AzureOid
             await pool.request()
                 .input('email', sql.NVarChar, email)
                 .input('azureOid', sql.NVarChar, azureOid)
@@ -117,7 +140,7 @@ class OAuthCallbackHandler {
                     WHERE LOWER(Email) = @email
                 `);
             
-            return existing.recordset[0];
+            return existingByEmail.recordset[0];
         }
 
         // Check if this is the admin email
