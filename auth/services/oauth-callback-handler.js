@@ -105,7 +105,7 @@ class OAuthCallbackHandler {
 
         if (existingByOid.recordset.length > 0) {
             // User found by AzureOid - update last login and email (in case it changed)
-            await pool.request()
+            const updatedUser = await pool.request()
                 .input('azureOid', sql.NVarChar, azureOid)
                 .input('email', sql.NVarChar, email)
                 .input('displayName', sql.NVarChar, displayName)
@@ -114,11 +114,12 @@ class OAuthCallbackHandler {
                     SET LastLoginAt = GETDATE(), 
                         Email = @email,
                         DisplayName = @displayName
+                    OUTPUT INSERTED.*
                     WHERE AzureOid = @azureOid
                 `);
             
             console.log(`[AUTH] User matched by AzureOid: ${existingByOid.recordset[0].Email} -> ${email}`);
-            return existingByOid.recordset[0];
+            return updatedUser.recordset[0];
         }
 
         // Second, check if user exists by Email (for users without AzureOid set yet)
@@ -128,7 +129,7 @@ class OAuthCallbackHandler {
 
         if (existingByEmail.recordset.length > 0) {
             // Update last login and set AzureOid
-            await pool.request()
+            const updatedUser = await pool.request()
                 .input('email', sql.NVarChar, email)
                 .input('azureOid', sql.NVarChar, azureOid)
                 .input('displayName', sql.NVarChar, displayName)
@@ -137,10 +138,11 @@ class OAuthCallbackHandler {
                     SET LastLoginAt = GETDATE(), 
                         AzureOid = @azureOid,
                         DisplayName = @displayName
+                    OUTPUT INSERTED.*
                     WHERE LOWER(Email) = @email
                 `);
             
-            return existingByEmail.recordset[0];
+            return updatedUser.recordset[0];
         }
 
         // Check if this is the admin email
