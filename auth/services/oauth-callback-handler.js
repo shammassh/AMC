@@ -6,6 +6,7 @@
 const msal = require('@azure/msal-node');
 const sql = require('mssql');
 const SessionManager = require('./session-manager');
+const DatabaseService = require('../../services/database-service');
 
 class OAuthCallbackHandler {
     constructor() {
@@ -40,8 +41,12 @@ class OAuthCallbackHandler {
             // Get user info from Microsoft Graph
             const userInfo = await this.getUserInfo(response.accessToken);
             
+            console.log(`[AUTH] Microsoft user info: email=${userInfo.mail || userInfo.userPrincipalName}, oid=${userInfo.id}, displayName=${userInfo.displayName}`);
+            
             // Create or update user in database
             const user = await this.createOrUpdateUser(userInfo, response);
+            
+            console.log(`[AUTH] DB user matched: Id=${user.Id}, Email=${user.Email}, DisplayName=${user.DisplayName}`);
             
             // Create session
             const session = await SessionManager.createSession(user.Id, {
@@ -56,7 +61,7 @@ class OAuthCallbackHandler {
                 maxAge: 24 * 60 * 60 * 1000 // 24 hours
             });
 
-            console.log(`[AUTH] User logged in: ${userInfo.mail || userInfo.userPrincipalName}`);
+            console.log(`[AUTH] Login complete: ${userInfo.mail || userInfo.userPrincipalName} => Session ${session.sessionToken.substring(0, 8)}...`);
             
             // Redirect based on role
             const returnUrl = req.query.state || '/dashboard';
@@ -83,16 +88,8 @@ class OAuthCallbackHandler {
     }
 
     async createOrUpdateUser(userInfo, tokens) {
-        const pool = await sql.connect({
-            server: process.env.SQL_SERVER || 'localhost',
-            database: process.env.SQL_DATABASE || 'GMRL_AMC',
-            user: process.env.SQL_USER || 'sa',
-            password: process.env.SQL_PASSWORD,
-            options: {
-                encrypt: process.env.SQL_ENCRYPT === 'true',
-                trustServerCertificate: process.env.SQL_TRUST_CERT === 'true'
-            }
-        });
+        // Use shared connection pool to avoid race conditions with multiple simultaneous logins
+        const pool = DatabaseService.getPool();
 
         const email = (userInfo.mail || userInfo.userPrincipalName || '').toLowerCase();
         const displayName = userInfo.displayName || email;

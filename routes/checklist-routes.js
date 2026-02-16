@@ -52,6 +52,7 @@ router.get('/new', async (req, res) => {
     try {
         const userId = parseInt(req.currentUser.id, 10);
         const questions = await QuestionService.getAll();
+        const passingScore = await SettingsService.getPassingScore();
         
         // If user is Admin or HeadOfOperations, show all stores
         let allStores;
@@ -212,6 +213,7 @@ router.get('/new', async (req, res) => {
 
             <script>
                 const totalQuestions = ${questions.length};
+                const passingScore = ${passingScore};
                 
                 // Handle answer selection
                 function handleAnswer(index, value) {
@@ -327,7 +329,7 @@ router.get('/new', async (req, res) => {
                     // Color code based on percentage
                     const scoreEl = document.getElementById('scorePercent');
                     const scoreDisplay = document.getElementById('scoreDisplay');
-                    const className = percent >= 80 ? 'score-good' : percent >= 60 ? 'score-warning' : 'score-bad';
+                    const className = percent >= passingScore ? 'score-good' : 'score-bad';
                     scoreEl.className = className;
                     scoreDisplay.className = className;
                 }
@@ -480,7 +482,7 @@ router.get('/success/:documentNumber', async (req, res) => {
                     <p><strong>Document Number:</strong> ${checklist.DocumentNumber}</p>
                     <p><strong>Store:</strong> ${escapeHtml(checklist.StoreName)}</p>
                     <p><strong>Date:</strong> ${new Date(checklist.AuditDate).toLocaleDateString('en-GB')}</p>
-                    <p><strong>Score:</strong> <span class="score-badge ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">${checklist.ScorePercentage.toFixed(1)}%</span></p>
+                    <p><strong>Score:</strong> <span class="score-badge ${passed ? 'score-good' : 'score-bad'}">${checklist.ScorePercentage.toFixed(1)}%</span></p>
                     <p><strong>Status:</strong> <span class="badge ${passed ? 'badge-success' : 'badge-danger'}">${passed ? 'PASS' : 'FAIL'}</span></p>
                 </div>
                 <div class="success-actions">
@@ -508,6 +510,9 @@ router.get('/view/:id', async (req, res) => {
             return res.status(404).send('Checklist not found');
         }
 
+        const passingScore = await SettingsService.getPassingScore();
+        const passed = checklist.ScorePercentage >= passingScore;
+
         res.send(renderChecklistPage(req.currentUser, `
             <div class="checklist-view">
                 <div class="view-header">
@@ -519,8 +524,8 @@ router.get('/view/:id', async (req, res) => {
                             <span>👤 ${escapeHtml(checklist.SubmittedByName)}</span>
                         </p>
                     </div>
-                    <div class="view-score ${checklist.ScorePercentage >= 80 ? 'score-good' : checklist.ScorePercentage >= 60 ? 'score-warning' : 'score-bad'}">
-                        ${checklist.TotalEarned.toFixed(2)}
+                    <div class="view-score ${passed ? 'score-good' : 'score-bad'}">
+                        ${checklist.ScorePercentage.toFixed(1)}%
                     </div>
                 </div>
 

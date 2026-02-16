@@ -71,7 +71,7 @@ router.get('/', async (req, res) => {
                     <div class="stat-label">Total Checklists</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value ${getScoreClass(stats.AverageScore)}">${stats.AverageScore ? stats.AverageScore.toFixed(1) + '%' : '-'}</div>
+                    <div class="stat-value ${getScoreClass(stats.AverageScore, passingScore)}">${stats.AverageScore ? stats.AverageScore.toFixed(1) + '%' : '-'}</div>
                     <div class="stat-label">Average Score</div>
                 </div>
                 <div class="stat-card">
@@ -194,7 +194,7 @@ router.get('/', async (req, res) => {
                                 <td>${formatDate(c.AuditDate)}</td>
                                 <td>${escapeHtml(c.SubmittedByName)}</td>
                                 <td class="center">
-                                    <span class="score-badge ${getScoreClass(c.ScorePercentage)}">${c.ScorePercentage.toFixed(1)}%</span>
+                                    <span class="score-badge ${getScoreClass(c.ScorePercentage, passingScore)}">${c.ScorePercentage.toFixed(1)}%</span>
                                 </td>
                                 <td class="center">
                                     <span class="badge ${passed ? 'badge-success' : 'badge-danger'}">${passed ? 'Pass' : 'Fail'}</span>
@@ -242,9 +242,8 @@ function formatDate(date) {
     return new Date(date).toLocaleDateString('en-GB');
 }
 
-function getScoreClass(score) {
-    if (score >= 80) return 'score-good';
-    if (score >= 60) return 'score-warning';
+function getScoreClass(score, passingScore = 75) {
+    if (score >= passingScore) return 'score-good';
     return 'score-bad';
 }
 

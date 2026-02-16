@@ -32,8 +32,10 @@ class AuthServer {
     }
     
     setupRoutes() {
-        // Login page
+        // Login page - clear any existing session to prevent confusion
         this.app.get('/auth/login', (req, res) => {
+            // Clear existing auth cookie to prevent session confusion
+            res.clearCookie('auth_token');
             LoginPage.render(req, res);
         });
         

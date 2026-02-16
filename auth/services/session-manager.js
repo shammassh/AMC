@@ -5,28 +5,15 @@
 
 const sql = require('mssql');
 const crypto = require('crypto');
+const DatabaseService = require('../../services/database-service');
 
 class SessionManager {
-    static pool = null;
-
-    static async getPool() {
-        if (!this.pool) {
-            this.pool = await sql.connect({
-                server: process.env.SQL_SERVER || 'localhost',
-                database: process.env.SQL_DATABASE || 'GMRL_AMC',
-                user: process.env.SQL_USER || 'sa',
-                password: process.env.SQL_PASSWORD,
-                options: {
-                    encrypt: process.env.SQL_ENCRYPT === 'true',
-                    trustServerCertificate: process.env.SQL_TRUST_CERT === 'true'
-                }
-            });
-        }
-        return this.pool;
+    static getPool() {
+        return DatabaseService.getPool();
     }
 
     static async createSession(userId, azureTokens) {
-        const pool = await this.getPool();
+        const pool = this.getPool();
         
         const sessionToken = this.generateSessionToken();
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -43,12 +30,12 @@ class SessionManager {
                 VALUES (@sessionId, @userId, @token, @expiresAt, @accessToken, @refreshToken, @sessionId, GETDATE())
             `);
         
-        console.log(`[SESSION] Created for user ${userId}`);
+        console.log(`[SESSION] Created token ${sessionToken.substring(0, 8)}... for userId ${userId}`);
         return { sessionToken, expiresAt };
     }
 
     static async getSession(sessionToken) {
-        const pool = await this.getPool();
+        const pool = this.getPool();
         
         const result = await pool.request()
             .input('sessionId', sql.NVarChar, sessionToken)
@@ -67,11 +54,16 @@ class SessionManager {
                 AND u.IsActive = 1
             `);
         
+        // Debug logging for session issues
+        if (result.recordset[0]) {
+            console.log(`[SESSION] Token ${sessionToken.substring(0, 8)}... => User: ${result.recordset[0].Email} (ID: ${result.recordset[0].UserId})`);
+        }
+        
         return result.recordset[0] || null;
     }
 
     static async deleteSession(sessionToken) {
-        const pool = await this.getPool();
+        const pool = this.getPool();
         
         await pool.request()
             .input('sessionId', sql.NVarChar, sessionToken)
@@ -81,7 +73,7 @@ class SessionManager {
     }
 
     static async cleanupExpiredSessions() {
-        const pool = await this.getPool();
+        const pool = this.getPool();
         
         const result = await pool.request()
             .query('DELETE FROM Sessions WHERE ExpiresAt < GETDATE()');
