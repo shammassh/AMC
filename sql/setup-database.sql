@@ -233,6 +233,40 @@ BEGIN
 END
 GO
 
+-- =============================================
+-- Add last_activity column to Sessions table if not exists
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Sessions') AND name = 'last_activity')
+BEGIN
+    ALTER TABLE Sessions ADD last_activity DATETIME2 NULL;
+    PRINT 'Added last_activity column to Sessions table';
+END
+GO
+
+-- =============================================
+-- Add additional session columns if not exist
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Sessions') AND name = 'azure_access_token')
+BEGIN
+    ALTER TABLE Sessions ADD azure_access_token NVARCHAR(MAX) NULL;
+    PRINT 'Added azure_access_token column to Sessions table';
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Sessions') AND name = 'azure_refresh_token')
+BEGIN
+    ALTER TABLE Sessions ADD azure_refresh_token NVARCHAR(MAX) NULL;
+    PRINT 'Added azure_refresh_token column to Sessions table';
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Sessions') AND name = 'session_token')
+BEGIN
+    ALTER TABLE Sessions ADD session_token NVARCHAR(255) NULL;
+    PRINT 'Added session_token column to Sessions table';
+END
+GO
+
 PRINT '';
 PRINT '=============================================';
 PRINT '  Database Setup Complete!';

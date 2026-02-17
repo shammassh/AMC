@@ -215,6 +215,7 @@ router.get('/', async (req, res) => {
                     <a href="/admin/stores" class="btn btn-secondary">🏪 Manage Stores</a>
                     ${req.currentUser.role === 'Admin' ? '<a href="/admin/users" class="btn btn-secondary">👥 Manage Users</a>' : ''}
                     ${req.currentUser.role === 'Admin' ? '<a href="/admin/assignments" class="btn btn-secondary">📌 Store Assignments</a>' : ''}
+                    ${req.currentUser.role === 'Admin' ? '<a href="/admin/sessions" class="btn btn-secondary">🔐 Session Manager</a>' : ''}
                 </div>
             ` : ''}
         `));

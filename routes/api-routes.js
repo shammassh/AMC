@@ -11,6 +11,7 @@ const StoreService = require('../services/store-service');
 const UserService = require('../services/user-service');
 const ChecklistService = require('../services/checklist-service');
 const SharePointService = require('../services/sharepoint-service');
+const SessionManager = require('../auth/services/session-manager');
 
 // Middleware to check admin/manager role
 const requireAdminOrManager = (req, res, next) => {
@@ -267,6 +268,64 @@ router.post('/impersonate/:userId', (req, res) => {
 router.post('/impersonate/stop', (req, res) => {
     res.clearCookie('impersonate_user');
     res.json({ success: true, message: 'Stopped impersonation' });
+});
+
+// ==========================================
+// Session Management API (Admin Only)
+// ==========================================
+
+// Middleware to check admin role
+const requireAdmin = (req, res, next) => {
+    if (req.currentUser.role !== 'Admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+};
+
+// Get all active sessions
+router.get('/admin/sessions', requireAdmin, async (req, res) => {
+    try {
+        const sessions = await SessionManager.getAllActiveSessions();
+        res.json(sessions);
+    } catch (error) {
+        console.error('[API] Get sessions error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Terminate a specific session by ID
+router.delete('/admin/sessions/:sessionId', requireAdmin, async (req, res) => {
+    try {
+        const sessionId = parseInt(req.params.sessionId);
+        const deleted = await SessionManager.deleteSessionById(sessionId);
+        res.json({ success: true, deleted });
+    } catch (error) {
+        console.error('[API] Delete session error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Terminate all sessions for a user
+router.delete('/admin/sessions/user/:userId', requireAdmin, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.userId);
+        const deleted = await SessionManager.deleteUserSessions(userId);
+        res.json({ success: true, deleted });
+    } catch (error) {
+        console.error('[API] Delete user sessions error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Cleanup expired sessions
+router.post('/admin/sessions/cleanup', requireAdmin, async (req, res) => {
+    try {
+        const count = await SessionManager.cleanupExpiredSessions();
+        res.json({ success: true, count });
+    } catch (error) {
+        console.error('[API] Cleanup sessions error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 module.exports = router;

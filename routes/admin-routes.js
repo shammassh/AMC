@@ -11,6 +11,7 @@ const StoreService = require('../services/store-service');
 const UserService = require('../services/user-service');
 const SharePointService = require('../services/sharepoint-service');
 const SettingsService = require('../services/settings-service');
+const SessionManager = require('../auth/services/session-manager');
 
 // ==========================================
 // Admin Dashboard
@@ -1243,6 +1244,206 @@ router.post('/settings/save', async (req, res) => {
 });
 
 // ==========================================
+// Session Manager (Admin Only)
+// ==========================================
+
+router.get('/sessions', async (req, res) => {
+    // Admin only
+    if (req.currentUser.role !== 'Admin') {
+        return res.status(403).send('Access denied. Admin only.');
+    }
+    
+    try {
+        const sessions = await SessionManager.getAllActiveSessions();
+        const userSessions = await SessionManager.getSessionsByUser();
+        
+        // Find users with duplicate sessions
+        const duplicates = userSessions.filter(u => u.SessionCount > 1);
+        
+        res.send(renderAdminPage(req.currentUser, 'sessions', `
+            <div class="admin-header">
+                <h1>🔐 Session Manager</h1>
+                <div>
+                    <button class="btn btn-warning" onclick="cleanupExpired()">🧹 Cleanup Expired</button>
+                </div>
+            </div>
+
+            <div class="stats-grid" style="margin-bottom: 25px;">
+                <div class="stat-card">
+                    <div class="stat-value">${sessions.length}</div>
+                    <div class="stat-label">Active Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${userSessions.length}</div>
+                    <div class="stat-label">Users Online</div>
+                </div>
+                <div class="stat-card ${duplicates.length > 0 ? 'warning' : ''}">
+                    <div class="stat-value">${duplicates.length}</div>
+                    <div class="stat-label">Duplicate Sessions</div>
+                </div>
+            </div>
+
+            ${duplicates.length > 0 ? `
+            <div class="alert alert-warning">
+                <h3>⚠️ Users with Multiple Sessions</h3>
+                <p>These users have more than one active session, which may indicate duplicate logins:</p>
+                <table class="data-table" style="margin-top: 15px;">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Sessions</th>
+                            <th>Last Activity</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${duplicates.map(u => `
+                            <tr>
+                                <td><strong>${escapeHtml(u.DisplayName)}</strong></td>
+                                <td>${escapeHtml(u.Email)}</td>
+                                <td><span class="badge badge-primary">${u.Role}</span></td>
+                                <td class="center"><span class="badge badge-warning">${u.SessionCount}</span></td>
+                                <td>${formatDateTime(u.LastActivity)}</td>
+                                <td class="center">
+                                    <button class="btn btn-sm btn-danger" onclick="terminateUserSessions(${u.UserId}, '${escapeHtml(u.DisplayName).replace(/'/g, "\\'")}')" title="Terminate all sessions">🗑️ End All</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ` : ''}
+
+            <div class="section-header">
+                <h2>All Active Sessions</h2>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Session Identifier</th>
+                        <th>Last Activity</th>
+                        <th>Expires</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sessions.length === 0 ? `
+                        <tr><td colspan="7" class="center">No active sessions</td></tr>
+                    ` : sessions.map(s => `
+                        <tr>
+                            <td>
+                                <strong>${escapeHtml(s.DisplayName)}</strong>
+                                ${s.SessionCount > 1 ? `<span class="badge badge-warning" title="Has ${s.SessionCount} active sessions">×${s.SessionCount}</span>` : ''}
+                            </td>
+                            <td>${escapeHtml(s.Email)}</td>
+                            <td><span class="badge badge-primary">${s.Role}</span></td>
+                            <td><code style="font-size: 11px;">${s.SessionToken}</code></td>
+                            <td>${formatDateTime(s.LastActivity)}</td>
+                            <td>${formatDateTime(s.ExpiresAt)}</td>
+                            <td class="center">
+                                <button class="btn btn-sm btn-danger" onclick="terminateSession(${s.SessionId}, '${escapeHtml(s.DisplayName).replace(/'/g, "\\'")}')" title="Terminate this session">🗑️</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+
+            <style>
+                .stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 20px;
+                }
+                .stat-card {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    text-align: center;
+                }
+                .stat-card.warning {
+                    border-left: 4px solid #f0ad4e;
+                }
+                .stat-value {
+                    font-size: 2rem;
+                    font-weight: bold;
+                    color: #0078d4;
+                }
+                .stat-label {
+                    color: #666;
+                    margin-top: 5px;
+                }
+                .alert {
+                    padding: 20px;
+                    border-radius: 8px;
+                    margin-bottom: 25px;
+                }
+                .alert-warning {
+                    background: #fff3cd;
+                    border: 1px solid #ffc107;
+                }
+                .alert h3 {
+                    margin: 0 0 10px 0;
+                    color: #856404;
+                }
+                .section-header {
+                    margin-bottom: 15px;
+                }
+                .section-header h2 {
+                    margin: 0;
+                    color: #333;
+                }
+                code {
+                    background: #f5f5f5;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                }
+            </style>
+
+            <script>
+                async function terminateSession(sessionId, userName) {
+                    if (!confirm('Terminate session for ' + userName + '? They will need to login again.')) return;
+                    
+                    const response = await fetch('/api/admin/sessions/' + sessionId, { method: 'DELETE' });
+                    if (response.ok) {
+                        location.reload();
+                    } else {
+                        alert('Error terminating session');
+                    }
+                }
+
+                async function terminateUserSessions(userId, userName) {
+                    if (!confirm('Terminate ALL sessions for ' + userName + '? They will need to login again.')) return;
+                    
+                    const response = await fetch('/api/admin/sessions/user/' + userId, { method: 'DELETE' });
+                    if (response.ok) {
+                        location.reload();
+                    } else {
+                        alert('Error terminating sessions');
+                    }
+                }
+
+                async function cleanupExpired() {
+                    const response = await fetch('/api/admin/sessions/cleanup', { method: 'POST' });
+                    const data = await response.json();
+                    alert('Cleaned up ' + data.count + ' expired sessions');
+                    location.reload();
+                }
+            </script>
+        `));
+    } catch (error) {
+        console.error('[ADMIN] Sessions error:', error);
+        res.status(500).send('Error loading sessions');
+    }
+});
+
+// ==========================================
 // Helper Functions
 // ==========================================
 
@@ -1258,6 +1459,12 @@ function escapeHtml(text) {
 function formatDate(date) {
     if (!date) return '-';
     return new Date(date).toLocaleDateString('en-GB');
+}
+
+function formatDateTime(date) {
+    if (!date) return '-';
+    const d = new Date(date);
+    return d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 function renderAdminPage(user, activeTab, content) {
@@ -1306,6 +1513,7 @@ function renderAdminPage(user, activeTab, content) {
                     ${user.role === 'Admin' ? `<a href="/admin/users" class="sidebar-link ${activeTab === 'users' ? 'active' : ''}">👥 Users</a>` : ''}
                     ${user.role === 'Admin' || user.role === 'HeadOfOperations' ? `<a href="/admin/assignments" class="sidebar-link ${activeTab === 'assignments' ? 'active' : ''}">📌 Assignments</a>` : ''}
                     ${user.role === 'Admin' || user.role === 'HeadOfOperations' ? `<a href="/admin/settings" class="sidebar-link ${activeTab === 'settings' ? 'active' : ''}">⚙️ Settings</a>` : ''}
+                    ${user.role === 'Admin' ? `<a href="/admin/sessions" class="sidebar-link ${activeTab === 'sessions' ? 'active' : ''}">🔐 Sessions</a>` : ''}
                 </aside>
                 
                 <main class="admin-content">
